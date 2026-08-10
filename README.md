@@ -1,3 +1,29 @@
+آقا شاهین، یک مشکل دیگه هم مربوط به SignalR داریم.
+
+وقتی من برای گرفتن Order Book به endpoint زیر request می‌زنم:
+
+`/api/v1/market/depth/`
+
+ممکنه همراه request یک Query/Parameter بفرستم که نوع داده را مشخص می‌کنه؛ مثلاً:
+
+* `isDemo=true`
+* یا حالت ۱۰٪
+* یا هر پارامتر دیگه‌ای که باعث تغییر داده‌ی Order Book میشه.
+
+خود API می‌تونه بر اساس این پارامترها response صحیح برگردونه، اما مشکل اینجاست که بلافاصله بعد از دریافت response، SignalR یک `OrderBookUpdated` ارسال می‌کنه و داده‌ی قبلی/متفاوتی رو روی response API overwrite می‌کنه. در نتیجه UI داده‌ی اشتباه نمایش میده.
+
+راه‌حلی که به ذهن من رسیده اینه که هنگام fetch کردن `/api/v1/market/depth/`، تا زمانی که response این endpoint به کلاینت نرسیده، اجازه ندیم SignalR آپدیت Order Book رو اعمال کنه.
+
+از سمت بک‌اند هم اگر امکانش هست، منطق ارسال `OrderBookUpdated` بر اساس Query/Parameter دریافتی از request تغییر کنه؛ یعنی مثلاً اگر request با `isDemo=true` ارسال شده، داده‌ای که SignalR برای `OrderBookUpdated` ارسال می‌کنه هم مربوط به همون حالت باشه.
+
+در واقع هدف اینه که این دو جریان با هم تداخل نداشته باشن:
+
+1. ابتدا `/api/v1/market/depth/` بر اساس پارامترهای request، Order Book صحیح رو برگردونه.
+2. تا زمان دریافت response، SignalR باعث overwrite شدن داده نشه.
+3. بعد از اون، `OrderBookUpdated` هم بر اساس همان context/پارامترهای مربوط به request، آپدیت صحیح رو ارسال کنه.
+
+اگر از سمت بک‌اند راه بهتری برای حل این race condition بین API response و SignalR وجود داره، ممنون میشم همون روش رو پیاده کنیم.
+
 ### 6. تشخیص نوع معامله در `Place Order / Create Order`
 
 در Feature مربوط به معاملات ۱۰ درصدی، زمانی که کاربر این نوع معامله را فعال می‌کند، برای ثبت سفارش از API زیر استفاده می‌کنم:
