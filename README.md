@@ -1,54 +1,320 @@
-### ۱. خرید موفق است ولی دارایی به کیف پول اضافه نمی‌شود
+# مشکلات Backend و جزئیات تست
 
-هنگام خرید یک نماد، عملیات با موفقیت انجام می‌شود، اما آن نماد به کیف پول کاربر اضافه نمی‌شود؛ حتی بعد از Refresh.
+## ۱. مشکل آپدیت نشدن کیف پول
 
-همچنین عملیات خرید و فروش، کیف پول را به‌صورت **Real-time** آپدیت نمی‌کند.
+هنگام انجام معامله، کیف پول کاربر از طریق SignalR به‌صورت Real-time آپدیت نمی‌شود.
 
-این مشکل در **حالت Demo** نیز وجود دارد.
+همچنین هنگام خرید یک نماد، خود نماد وارد کیف پول نمی‌شود و حتی بعد از Refresh نیز همچنان در کیف پول نمایش داده نمی‌شود.
 
-### ۲. آپدیت نشدن کیف پول بعد از Fill شدن سفارش فروش
+نکته مهم این است که موجودی ریالی کیف پول بعد از Refresh آپدیت می‌شود، اما دارایی خریداری‌شده به کیف پول اضافه نمی‌شود.
 
-هنگام فروش یک دارایی و Fill شدن سفارش، موجودی کیف پول کاربر باید افزایش پیدا کند؛ اما بعد از Fill شدن سفارش فروش، کیف پول آپدیت نمی‌شود، حتی بعد از Refresh.
+### درخواست خرید
 
-### ۳. مشکل معامله ۱۰ درصد
+```json
+{
+  "ProductCode": "REBAR",
+  "OrderSide": 0,
+  "OrderType": 1,
+  "Weight": 1,
+  "Price": 750000,
+  "IsDemo": false,
+  "settlementMode": 0
+}
+```
 
-هنگام معامله با `settlementMode: 1`، به‌جای کم شدن **۱۰٪** مبلغ معامله از کیف پول، **۱۰۰٪** مبلغ معامله از کیف پول کم می‌شود.
+### پاسخ کیف پول قبل از خرید
 
-### ۴. تفکیک نشدن سفارش‌های ۱۰ درصد در Order Book
+```json
+{
+  "isSuccess": true,
+  "data": {
+    "totalPortfolioValueIrt": 1513000000,
+    "totalProfitLoss24hIrt": 0,
+    "totalProfitLoss24hPercentage": 0,
+    "availableCash": 1513000000,
+    "marginCredit": 6000000,
+    "buyingPower": 1519000000,
+    "assets": [
+      {
+        "assetSymbol": "IRT",
+        "availableBalance": 1513000000.000,
+        "lockedBalance": 0.000,
+        "livePrice": 1,
+        "change24h": 0,
+        "totalValueInIrt": 1513000000.000,
+        "profitLoss24hInIrt": 0,
+        "lockedDetails": {
+          "totalLocked": 0.000,
+          "lockedInOrders": 0.000,
+          "lockedForDebt": 0.000,
+          "lockedByAdmin": 0.000
+        }
+      }
+    ]
+  }
+}
+```
 
-سرویس `/api/v1/market/depth/REBAR` حتی با دریافت Query مربوط به `settlementMode=1`، بین سفارش‌های ۱۰ درصد و سفارش‌های معمولی تفکیک قائل نمی‌شود و همه سفارش‌ها را در Response برمی‌گرداند.
+### پاسخ کیف پول بعد از خرید
 
-### ۵. در نظر نگرفتن Trading Credit در Buying Power
+```json
+{
+  "isSuccess": true,
+  "data": {
+    "totalPortfolioValueIrt": 1513000000,
+    "totalProfitLoss24hIrt": 0,
+    "totalProfitLoss24hPercentage": 0,
+    "availableCash": 1512259260,
+    "marginCredit": 6000000,
+    "buyingPower": 1518259260,
+    "assets": [
+      {
+        "assetSymbol": "IRT",
+        "availableBalance": 1512259260.000,
+        "lockedBalance": 740740.000,
+        "livePrice": 1,
+        "change24h": 0,
+        "totalValueInIrt": 1513000000.000,
+        "lockedDetails": {
+          "totalLocked": 740740.000,
+          "lockedInOrders": 740740.000,
+          "lockedForDebt": 0.000,
+          "lockedByAdmin": 0.000
+        }
+      }
+    ]
+  }
+}
+```
 
-با وجود داشتن اعتبار معاملاتی و کافی بودن `buyingPower`، اجازه انجام معامله داده نمی‌شد.
+### وضعیت SignalR
 
-به نظر می‌رسد Backend فقط موجودی کیف پول اصلی را در محاسبات معامله در نظر می‌گیرد و **Trading Credit** را محاسبه نمی‌کند.
+لیسنرهای زیر در Frontend فعال هستند:
 
-### ۶. مشکل دریافت روند سود و زیان کیف پول
+```ts
+walletHub.start(con);
 
-سرویس مربوط به دریافت روند سود و زیان کیف پول کاربر، که برای نمایش اطلاعات روی نمودار استفاده می‌شود، با خطای **500** پاسخ می‌دهد.
+con.on(onPortfolioUpdate, updatePortfolio);
+con.on(onPriceUpdate, updatePrice);
+con.on(onRefreshWallet, refreshPortfolio);
+```
 
-این مشکل حتی در **Postman** نیز قابل مشاهده است و API به‌درستی Response نمی‌دهد.
+اما هیچ‌کدام از Eventهای زیر اجرا نمی‌شوند (**فقط برای لغو سفارش ها و واریز به کیف پول اپدیت انجام میشه**):
 
-### ۷. مشکل Switch به حساب حقیقی
+* `onPortfolioUpdate`
+* `onPriceUpdate`
+* `onRefreshWallet`
 
-سرویس `/api/v1/auth/switch-personal` پاسخ موفق برمی‌گرداند، اما کاربر به حساب حقیقی خودش برنمی‌گردد و حساب حقوقی قبلی همچنان با مقدار `isActive: true` باقی می‌ماند.
+بنابراین آپدیت Real-time کیف پول از طریق SignalR انجام نمی‌شود.
 
-### ۸. ارسال نشدن Eventهای مربوط به معامله
+## ۲. مشکل آپدیت نشدن کیف پول بعد از Fill شدن سفارش فروش
 
-هنگام انجام معامله، Eventهای زیر از سمت Server ارسال نمی‌شوند:
+هنگام فروش یک دارایی و Fill شدن سفارش، موجودی کیف پول کاربر باید افزایش پیدا کند؛ اما بعد از Fill شدن سفارش فروش، کیف پول آپدیت نمی‌شود.
 
-* `onPriceChanged`
-* `onMarketTradeExecuted`
+### وضعیت تست
 
-در نتیجه آپدیت‌های **Real-time** مربوط به قیمت و معاملات انجام نمی‌شود.
+این مورد فعلاً قابل تست نیست.
 
-### ۹. نیاز به API دریافت Loyalty Levels برای User
+دلیل این است که دارایی خریداری‌شده در کیف پول اضافه نمی‌شود و در نتیجه امکان فروش آن دارایی و بررسی رفتار کیف پول بعد از Fill شدن سفارش فروش وجود ندارد.
 
-یک API برای دریافت لیست سطوح وفاداری کاربر نیاز است.
+## ۳. مشکل معامله فوری در حالت Demo
 
-این API نباید فقط برای **Admin** قابل دسترسی باشد و کاربران عادی نیز باید بتوانند لیست سطوح وفاداری را دریافت کنند.
+هنگام انجام معامله در حالت Demo، با وجود اینکه موجودی کافی وجود دارد، معامله فوری انجام نمی‌شود و با خطای `Order.HoldFailed` مواجه می‌شود.
 
-### ۱۰. متوقف نشدن Listenerها بعد از Unsubscribe
+### درخواست ثبت سفارش
 
-بعد از `Unsubscribe`، Eventها و Listenerهای مربوط به آن باید به‌درستی Cancel و متوقف شوند و دیگر Event جدیدی برای Subscription لغوشده دریافت نشود.
+```json
+{
+  "ProductCode": "REBAR",
+  "OrderSide": 0,
+  "OrderType": 1,
+  "Weight": 1,
+  "Price": 750000,
+  "IsDemo": true,
+  "settlementMode": 0
+}
+```
+
+### پاسخ سرور
+
+```json
+{
+  "isSuccess": false,
+  "message": "ثبت سفارش یا مسدودسازی دارایی با خطا مواجه شد. موجودی خود را بررسی کنید.",
+  "errorCode": "Order.HoldFailed"
+}
+```
+
+### موجودی کیف پول Demo
+
+```json
+{
+  "isSuccess": true,
+  "data": {
+    "totalPortfolioValueIrt": 1000000000,
+    "totalProfitLoss24hIrt": 0,
+    "totalProfitLoss24hPercentage": 0,
+    "availableCash": 1000000000,
+    "marginCredit": 6000000,
+    "buyingPower": 1006000000,
+    "assets": [
+      {
+        "assetSymbol": "IRT",
+        "availableBalance": 1000000000.00,
+        "lockedBalance": 0.00,
+        "livePrice": 1,
+        "change24h": 0,
+        "totalValueInIrt": 1000000000.00,
+        "profitLoss24hInIrt": 0,
+        "lockedDetails": {
+          "totalLocked": 0.00,
+          "lockedInOrders": 0.00,
+          "lockedForDebt": 0.00,
+          "lockedByAdmin": 0.00
+        }
+      }
+    ]
+  }
+}
+```
+
+## ۴. مشکل آپدیت نشدن موجودی Trading Credit / Margin
+
+اعتبار معاملاتی در محاسبات معامله در نظر گرفته می‌شود و مقدار `marginCredit` در کیف پول وجود دارد.
+
+اما بعد از انجام معامله، موجودی `Margin / Trading Credit` آپدیت نمی‌شود، حتی بعد از Refresh.
+
+همچنین این مقدار باید از طریق SignalR به‌صورت Real-time نیز آپدیت شود.
+
+### وضعیت فعلی
+
+مقدار `marginCredit` قبل و بعد از معامله همچنان `6,000,000` باقی می‌ماند.
+
+نیاز است بعد از انجام معامله، مقدار اعتبار معاملاتی و Buying Power متناسب با معامله به‌درستی به‌روزرسانی شود.
+
+## ۵. مشکل بررسی Locked Details برای دارایی‌های خریداری‌شده
+
+به دلیل اینکه بعد از خرید، نماد وارد کیف پول نمی‌شود، امکان بررسی `lockedDetails` برای دارایی خریداری‌شده وجود ندارد.
+
+این اطلاعات برای مشخص کردن دارایی‌هایی که نیاز به پرداخت بدهی دارند استفاده می‌شود.
+
+### وضعیت تست
+
+این مورد فعلاً قابل تست نیست.
+
+ابتدا باید مشکل اضافه نشدن دارایی خریداری‌شده به کیف پول برطرف شود تا بتوان `lockedDetails` مربوط به آن دارایی را بررسی کرد.
+
+## ۶. تفکیک نشدن Order Book در معامله ۱۰ درصد
+
+سرویس Order Book با وجود دریافت Query مربوط به `settlementMode`، بین Order Book حالت ۱۰ درصد و حالت عادی تفاوتی ایجاد نمی‌کند. حتا در اپدیت سیگنال ار هم تفاوتی اعمال نمیکنه من چک کردم که حتما  unsub و sub  به حالت جدید اتفاق بیوفته و درست عمل میکنه ولی اپدیت ها اشتباه ارسال میشن.
+
+### درخواست حالت ۱۰ درصد
+
+```text
+/api/v1/market/depth/REBAR?isDemo=false&setllementMode=1
+```
+
+### پاسخ
+
+```json
+{
+  "isSuccess": true,
+  "data": {
+    "bids": [
+      [
+        100000,
+        10
+      ]
+    ],
+    "asks": [
+      [
+        740000,
+        18586.8
+      ]
+    ]
+  },
+  "message": "عملیات با موفقیت انجام شد.",
+  "errorCode": null
+}
+```
+
+### درخواست حالت عادی
+
+```text
+/api/v1/market/depth/REBAR?isDemo=false&setllementMode=0
+```
+
+### نتیجه تست
+
+پاسخ هر دو درخواست دقیقاً یکسان است.
+
+یعنی مقدار `setllementMode=1` هیچ تفاوتی در Order Book ایجاد نمی‌کند و سفارش‌های حالت ۱۰ درصد و حالت معمولی از یکدیگر تفکیک نمی‌شوند.
+
+## ۷. کسر شدن ۱۰۰ درصد در معامله ۱۰ درصد
+
+هنگام انجام معامله با `settlementMode: 1`، به جای کسر ۱۰ درصد مبلغ معامله، ۱۰۰ درصد مبلغ از کیف پول کاربر کسر می‌شود.
+
+### درخواست ثبت سفارش ۱۰ درصد
+
+```json
+{
+  "ProductCode": "REBAR",
+  "OrderSide": 0,
+  "OrderType": 1,
+  "Weight": 1,
+  "Price": 750000,
+  "IsDemo": true,
+  "settlementMode": 1
+}
+```
+
+### درخواست بررسی کیف پول
+
+```text
+/api/v1/wallet/portfolio?isdemo=false
+```
+
+### نتیجه تست
+
+با وجود اینکه سفارش با `settlementMode: 1` ثبت می‌شود، در زمان انجام معامله **۱۰۰ درصد مبلغ معامله از کیف پول کسر می‌شود** و نه ۱۰ درصد.
+
+بنابراین منطق کسر موجودی برای معاملات ۱۰ درصد همچنان صحیح نیست.
+
+## ۸. ارسال نشدن Eventهای مربوط به معامله
+
+برای دریافت آپدیت‌های Market، ابتدا Subscribe به Market انجام می‌شود.
+
+### اینوکر Market
+
+```ts
+con.invoke(
+  "SubscribeToMarket",
+  symbol,
+  isdemo,
+  settlementMode,
+)
+```
+
+در این درخواست مقادیر زیر به Server ارسال می‌شوند:
+
+* `symbol`
+* `isdemo`
+* `settlementMode`
+
+### Eventهای مورد انتظار
+
+```ts
+const onTradeExecuted = "OnTradeExecuted";
+const orderBookUpdated = "OrderBookUpdated";
+const OnMarketPriceChanged = "OnMarketPriceChanged";
+```
+
+Eventهایی که Frontend برای دریافت تغییرات Market به آن‌ها گوش می‌دهد:
+
+* `OnTradeExecuted`
+* `OrderBookUpdated`
+* `OnMarketPriceChanged`
+
+### نتیجه تست
+
+Eventهای مربوط به معامله و تغییرات Market از سمت Server به‌درستی دریافت نمی‌شوند و در نتیجه آپدیت‌های Real-time مربوط به معامله، Order Book و قیمت در Frontend انجام نمی‌شود.
