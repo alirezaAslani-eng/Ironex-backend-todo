@@ -1,5 +1,51 @@
 # مشکلات Backend و جزئیات تست
 
+## ۹. مشکل اشتباه بودن `currentLevel` در وضعیت KYC
+
+پاسخ فعلی Backend برای وضعیت KYC به شکل زیر است:
+
+```json
+{
+  "json": {
+    "currentLevel": "Level2_Advanced",
+    "level1": {
+      "identity": {
+        "stepKey": "Level1_Identity",
+        "status": "Approved",
+        "comment": null
+      }
+    },
+    "level2": {
+      "address": {
+        "stepKey": "Level2_Address",
+        "status": "Approved",
+        "comment": null
+      },
+      "document": {
+        "stepKey": "Level2_Document",
+        "status": "NotStarted",
+        "comment": null
+      }
+    },
+    "level3": {
+      "liveness": {
+        "stepKey": "Level3_Liveness",
+        "status": "NotStarted",
+        "comment": null
+      }
+    }
+  }
+}
+```
+
+### نتیجه تست
+
+در پاسخ، مقدار `currentLevel` برابر با `Level2_Advanced` است، در حالی که مرحله `Level2_Document` هنوز وضعیت `NotStarted` دارد.
+
+بنابراین کاربر هنوز مرحله Document مربوط به سطح دوم را تکمیل و تأیید نکرده است، اما Backend مقدار `currentLevel` را `Level2_Advanced` برمی‌گرداند.
+
+نیاز است منطق تعیین `currentLevel` بررسی شود تا این مقدار بر اساس وضعیت واقعی مراحل KYC تعیین شود و زمانی که یک Step ضروری هنوز تکمیل یا تأیید نشده است، سطح کاربر به‌صورت اشتباه `Level2_Advanced` اعلام نشود.
+
 ## ۱. مشکل آپدیت نشدن کیف پول
 
 هنگام انجام معامله، کیف پول کاربر از طریق SignalR به‌صورت Real-time آپدیت نمی‌شود.
