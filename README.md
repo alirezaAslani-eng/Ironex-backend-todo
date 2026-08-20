@@ -1,6 +1,44 @@
 # مشکلات Backend و جزئیات تست
 
 
+## ۱۲. اشتباه بودن درصد سود و زیان
+
+در پاسخ API، مقدار `totalProfitLoss24hIrt` منفی است اما `totalProfitLoss24hPercentage` برابر `0.00` برمی‌گردد.
+
+در صورتی که سود و زیان ریالی منفی است، درصد سود و زیان نیز باید مقدار منفی متناسب داشته باشد.
+
+
+## ۱۱. نیاز به محاسبه فیلدهای Order بر اساس `settlementMode` در Backend
+
+مهم‌ترین دلیل برای انجام این محاسبات در Backend این است که فیلدهایی مثل `status` و `progress` صرفاً با یک محاسبه ساده ۱۰٪ قابل تعیین نیستند و ممکن است به چندین پارامتر و Business Rule وابسته باشند.
+
+بنابراین پیاده‌سازی این منطق در Frontend باعث می‌شود Business Logic مربوط به Order و Settlement وارد لایه Presentation شود و در صورت تغییر قوانین Backend، منطق Frontend نیز نیاز به تغییر داشته باشد.
+
+لیست Order در Frontend بیشتر وظیفه **مدیریت State و Presentation لایه UI** را دارد و بهتر است مسئول محاسبات پیچیده و Business Logic نباشد.
+
+همچنین اگر `settlementMode` باعث تغییر چندین فیلد مانند `totalWeight`، `filledWeight`، `remainingWeight`، `progress` و `status` شود، Frontend مجبور می‌شود برای هرکدام منطق جداگانه‌ای بر اساس چند پارامتر پیاده‌سازی کند.
+
+این موضوع باعث مشکلات زیر می‌شود:
+
+- Business Logic بین Backend و Frontend تکرار می‌شود.
+- با تغییر منطق Settlement در Backend، منطق Frontend نیز ممکن است نیاز به تغییر داشته باشد.
+- محاسبات بین چندین Column پراکنده می‌شوند و نگهداری کد سخت‌تر می‌شود.
+- Presentation Layer فرانت به جزئیات Business Logic مربوط به Settlement وابسته می‌شود.
+
+### نیازمندی
+
+بهتر است API بر اساس `settlementMode` مقادیر نهایی و قابل نمایش فیلدهایی مانند موارد زیر را برگرداند:
+
+- `totalWeight`
+- `filledWeight`
+- `remainingWeight`
+- `progress`
+- `status`
+
+در این حالت Frontend فقط مسئول **نمایش، مدیریت State و رفتار UI** خواهد بود و منطق محاسباتی و Business Rule مربوط به Order و Settlement در Backend متمرکز باقی می‌ماند.
+
+
+
 ## ۱۰. نیاز به API برای دریافت قوانین KYC
 
 نیاز است Backend یک API مشابه API مربوط به `Loyalty Rules` در اختیار Frontend قرار دهد تا لیست قوانین و مقررات مربوط به KYC را دریافت کنیم.
